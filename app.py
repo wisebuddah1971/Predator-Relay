@@ -15,7 +15,7 @@ async def tp(req: Request):
             "ticker":     d["symbol"],
             "action":     d["action"],
             "quantity":   math.floor(float(d["qty"])),
-            "stopLoss":   {"type":"stop", "price": float(d["sl"])},
+            "stopLoss":   {"type":"stop", "stopPrice": float(d["sl"])},
             "takeProfit": {"limitPrice": float(d["tp3"])},
         }
     elif ev in ("tp3_hit","sl_hit","trail_exit","dd_recovery_exit"):
