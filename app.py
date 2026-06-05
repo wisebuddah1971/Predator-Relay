@@ -19,7 +19,6 @@ async def tp(req: Request):
     ticker = SYMBOL_MAP.get(d["symbol"], d["symbol"])
 
     if ev == "entry":
-        # Remember entry direction
         position[ticker] = d["action"]
         out = {
             "ticker":     ticker,
@@ -29,11 +28,11 @@ async def tp(req: Request):
             "takeProfit": {"limitPrice": float(d["tp3"])},
         }
 
-    elif ev == "tp1_hit":
-        # Exit 2 contracts
+    elif ev == "tp2_hit":
+        # Fires first — exit 2 contracts
         entry_action = position.get(ticker)
         if not entry_action:
-            return {"ok": False, "error": "tp1_hit: no position tracked", "event": ev}
+            return {"ok": False, "error": "tp2_hit: no position tracked", "event": ev}
         exit_action = "sell" if entry_action == "buy" else "buy"
         out = {
             "ticker":   ticker,
@@ -41,11 +40,11 @@ async def tp(req: Request):
             "quantity": 2,
         }
 
-    elif ev == "tp2_hit":
-        # Exit 1 contract
+    elif ev == "tp1_hit":
+        # Fires second — exit 1 contract
         entry_action = position.get(ticker)
         if not entry_action:
-            return {"ok": False, "error": "tp2_hit: no position tracked", "event": ev}
+            return {"ok": False, "error": "tp1_hit: no position tracked", "event": ev}
         exit_action = "sell" if entry_action == "buy" else "buy"
         out = {
             "ticker":   ticker,
