@@ -13,19 +13,19 @@ async def tp(req: Request):
     ticker = SYMBOL_MAP.get(d["symbol"], d["symbol"])
 
     if ev == "entry":
+        qty = max(1, round(float(d["qty"])))
         out = {
             "ticker":     ticker,
             "action":     d["action"],
-            "quantity":   math.floor(float(d["qty"])),
+            "quantity":   qty,
             "stopLoss":   {"type": "stop", "stopPrice": float(d["sl"])},
             "takeProfit": {"limitPrice": float(d["tp3"])},
         }
 
     elif ev in ("tp3_hit", "sl_hit", "trail_exit", "dd_recovery_exit", "time_stop"):
         out = {
-            "ticker":    ticker,
-            "action":    "exit",
-            "sentiment": "flat",
+            "ticker": ticker,
+            "action": "exit",
         }
 
     else:
