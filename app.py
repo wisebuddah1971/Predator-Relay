@@ -3,18 +3,21 @@ import httpx
 
 app = FastAPI()
 
-TP_WEBHOOK = "https://webhooks.traderspost.io/trading/webhook/023be3ba-bb69-41ec-a267-0ba8d41b18c8/8941a2a686d316d532f233097388fe30"
+# 5 min webhook
+TP_WEBHOOK_5M = "https://webhooks.traderspost.io/trading/webhook/023be3ba-bb69-41ec-a267-0ba8d41b18c8/8941a2a686d316d532f233097388fe30"
+
+# 1 min webhook
+TP_WEBHOOK_1M = "https://webhooks.traderspost.io/trading/webhook/5d99688f-8c18-418e-bc98-9ffee1737080/6852e59848818e02e9faca661ea9d470"
+
 SYMBOL_MAP = {"MNQ1!": "MNQM2026", "NQ1!": "NQM2026"}
 
-# Fixed contract size
 ENTRY_QTY = 4
 
-# In-memory position tracker: ticker -> entry action ("buy" or "sell")
-position = {}
+# Separate position tracking for each timeframe
+position_5m = {}
+position_1m = {}
 
-@app.post("/tp")
-async def tp(req: Request):
-    d = await req.json()
+async def handle_signal(d, webhook_url, position):
     ev = d.get("event")
     ticker = SYMBOL_MAP.get(d["symbol"], d["symbol"])
 
@@ -29,40 +32,38 @@ async def tp(req: Request):
         }
 
     elif ev == "tp2_hit":
-        # Fires first — exit 2 contracts
         entry_action = position.get(ticker)
         if not entry_action:
             return {"ok": False, "error": "tp2_hit: no position tracked", "event": ev}
         exit_action = "sell" if entry_action == "buy" else "buy"
-        out = {
-            "ticker":   ticker,
-            "action":   exit_action,
-            "quantity": 2,
-        }
+        out = {"ticker": ticker, "action": exit_action, "quantity": 2}
 
     elif ev == "tp1_hit":
-        # Fires second — exit 1 contract
         entry_action = position.get(ticker)
         if not entry_action:
             return {"ok": False, "error": "tp1_hit: no position tracked", "event": ev}
         exit_action = "sell" if entry_action == "buy" else "buy"
-        out = {
-            "ticker":   ticker,
-            "action":   exit_action,
-            "quantity": 1,
-        }
+        out = {"ticker": ticker, "action": exit_action, "quantity": 1}
 
     elif ev in ("tp3_hit", "sl_hit", "trail_exit", "dd_recovery_exit", "time_stop"):
-        # Flatten remaining 1 contract and clear memory
         position.pop(ticker, None)
-        out = {
-            "ticker": ticker,
-            "action": "exit",
-        }
+        out = {"ticker": ticker, "action": "exit"}
 
     else:
         return {"ok": True, "skipped": ev}
 
     async with httpx.AsyncClient() as c:
-        r = await c.post(TP_WEBHOOK, json=out, timeout=10)
+        r = await c.post(webhook_url, json=out, timeout=10)
     return {"ok": True, "status": r.status_code, "sent": out}
+
+
+@app.post("/tp")
+async def tp_5m(req: Request):
+    d = await req.json()
+    return await handle_signal(d, TP_WEBHOOK_5M, position_5m)
+
+
+@app.post("/tp1m")
+async def tp_1m(req: Request):
+    d = await req.json()
+    return await handle_signal(d, TP_WEBHOOK_1M, position_1m)
