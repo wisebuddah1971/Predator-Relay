@@ -44,7 +44,8 @@ async def auth():
         f"?response_type=code"
         f"&client_id={TS_CLIENT_ID}"
         f"&redirect_uri={TS_REDIRECT_URI}"
-        f"&scope=openid+profile+MarketData+ReadAccount+Trade+offline_access"
+        f"&scope=openid profile MarketData ReadAccount Trade offline_access"
+
         f"&audience=https://api.tradestation.com"
     )
     return RedirectResponse(url)
