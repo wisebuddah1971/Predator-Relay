@@ -15,8 +15,9 @@ SYMBOL_MAP = {"MNQ1!": "MNQM2026", "NQ1!": "NQM2026"}
 ENTRY_QTY = 4
 
 # TradeStation API credentials (stored as env vars on Render)
-TS_CLIENT_ID = os.getenv("TS_CLIENT_ID", "P9ajTD2IAXvlLUZW87Nhcog4rIifVRox")
-TS_CLIENT_SECRET = os.getenv("TS_CLIENT_SECRET", "oGqrXknxAm5d2rqddcI0nTiaK_qFHfdO7OMgKPwjm8kNF1DBvUDhEwABJ69_baJe")
+TS_CLIENT_ID = os.getenv("TS_CLIENT_ID")
+TS_CLIENT_SECRET = os.getenv("TS_CLIENT_SECRET")
+
 TS_ACCOUNT = "210VMQ73"
 TS_REDIRECT_URI = "https://predator-relay.onrender.com/callback"
 TS_REFRESH_TOKEN = os.getenv("TS_REFRESH_TOKEN", "")
