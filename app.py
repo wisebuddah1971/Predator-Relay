@@ -34,11 +34,12 @@ async def get_tradovate_token():
     data = r.json()
     return data.get("accessToken")
 
-async def move_stop_to_breakeven(ticker, entry_price, remaining_qty):
+async def move_stop_to_breakeven(entry_price, remaining_qty):
     try:
         token = await get_tradovate_token()
         if not token:
-            return {"ok": False, "error": "Failed to get Tradovate token"}
+            print("BE move failed: could not get Tradovate token")
+            return
 
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -50,7 +51,7 @@ async def move_stop_to_breakeven(ticker, entry_price, remaining_qty):
             )
         orders = r.json()
 
-        # Find the stop order for this symbol
+        # Find the working stop order
         stop_order = None
         for order in orders:
             if (order.get("orderType") == "Stop" and
@@ -59,11 +60,12 @@ async def move_stop_to_breakeven(ticker, entry_price, remaining_qty):
                 break
 
         if not stop_order:
-            return {"ok": False, "error": "No open stop order found"}
+            print("BE move failed: no working stop order found")
+            return
 
         order_id = stop_order["id"]
 
-        # Modify stop to breakeven price
+        # Modify stop to breakeven
         async with httpx.AsyncClient() as c:
             r = await c.post(
                 "https://live.tradovateapi.com/v1/order/modifyorder",
@@ -75,10 +77,10 @@ async def move_stop_to_breakeven(ticker, entry_price, remaining_qty):
                     "qty": remaining_qty,
                 }
             )
-        return {"ok": True, "result": r.json()}
+        print(f"BE move result: {r.json()}")
 
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        print(f"BE move exception: {str(e)}")
 
 
 @app.post("/tp")
@@ -107,24 +109,31 @@ async def tp_endpoint(req: Request):
         if not pos:
             return {"ok": False, "error": "tp1_hit: no position tracked"}
         exit_action = "sell" if pos["action"] == "buy" else "buy"
+        # Exit 2 contracts, leave SL in place
         out = {"ticker": ticker, "action": exit_action, "quantity": 2}
         positions[ticker]["qty"] = 2
-        await move_stop_to_breakeven(ticker, pos["entry_price"], 2)
 
     elif ev == "tp2_hit":
         pos = positions.get(ticker)
         if not pos:
             return {"ok": False, "error": "tp2_hit: no position tracked"}
         exit_action = "sell" if pos["action"] == "buy" else "buy"
+        # Exit 1 contract
         out = {"ticker": ticker, "action": exit_action, "quantity": 1}
         positions[ticker]["qty"] = 1
+        # Now move SL to BE on the 1 remaining runner
+        await move_stop_to_breakeven(pos["entry_price"], 1)
 
-    elif ev in ("tp3_hit", "sl_hit", "trail_exit", "dd_recovery_exit", "time_stop"):
+    elif ev in ("tp3_hit", "sl_hit", "trail_exit", "dd_recovery_exit", "time_stop",
+                "sl_post_tp1", "sl_post_tp2", "be_exit", "sl_be"):
         positions.pop(ticker, None)
         out = {"ticker": ticker, "action": "exit"}
 
     else:
-        return {"ok": True, "skipped": ev}
+        # Unknown event — treat as full exit to be safe
+        print(f"Unknown event received: {ev} — treating as exit")
+        positions.pop(ticker, None)
+        out = {"ticker": ticker, "action": "exit"}
 
     async with httpx.AsyncClient() as c:
         r = await c.post(TP_WEBHOOK, json=out, timeout=10)
